@@ -1,0 +1,33 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <EditTextPreference
+        android:inputType="textCapWords"
+        android:key="tenant"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="@string/pref_tenant" />
+
+    <EditTextPreference
+        android:inputType="textCapWords"
+        android:key="deviceId"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="@string/pref_device_id" />
+
+    <EditTextPreference
+        android:inputType="textCapWords"
+        android:key="token"
+        android:maxLines="1"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:title="@string/pref_token" />
+
+    <Preference android:title="Scan QR code"
+        android:key="@string/qr_code"
+        android:summary="@string/qr_code_summary">
+
+    </Preference>
+
+</PreferenceScreen>
