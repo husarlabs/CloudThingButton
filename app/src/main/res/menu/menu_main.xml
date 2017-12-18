@@ -9,5 +9,10 @@
         android:orderInCategory="100"
         android:title="@string/settings"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/action_relay"
+        android:orderInCategory="100"
+        android:title="@string/relay"
+        app:showAsAction="never" />
 
 </menu>

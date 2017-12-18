@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">CloudThing Button</string>
+    <string name="app_name">Lerta Meter Bluetooth Relay</string>
 
     <!-- Strings related to Settings -->
 
@@ -7,11 +7,16 @@
     <string name="pref_device_id">Device ID</string>
     <string name="pref_token">Secret Token</string>
 
-    <string name="title_activity_main">Remote button</string>
+    <string name="title_activity_main">Lerta Meter Bluetooth Relay</string>
     <string name="settings">Settings</string>
+    <string name="relay">Relay</string>
     <string name="qr_code">qr_code</string>
     <string name="qr_scanner_label">QR scanner</string>
     <string name="qr_code_summary">Use your camera to scan for QR code with device preferences</string>
     <string name="appwidget_text">Test</string>
+    <string name="logs_widget_text">Logs</string>
     <string name="add_widget">Add widget</string>
+    <string name="do_relay">Do relay</string>
+    <string name="go_top">Go top</string>
+    <string name="go_bottom">Go bottom</string>
 </resources>
