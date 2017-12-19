@@ -11,6 +11,8 @@ import android.os.ResultReceiver;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
+import org.eclipse.paho.client.mqttv3.MqttException;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +49,7 @@ public class LertaMeterService extends Service {
     private int[] preamble = new int[2];
     private String frame;
     private BluetoothSocket socket;
+    private DataRequestFactory client;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -95,95 +98,20 @@ public class LertaMeterService extends Service {
                 final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
                 if ((frame = reader.readLine()) != null) {
                     logFrame();
-                    final DataRequestFactory factory = getDataRequestFactory();
-                    sendData(factory);
+                    sendData();
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
 
-        private void sendData(DataRequestFactory factory) throws Exception {
-            if (isFrameValid()) {
-                final GenericDataPayload payload = new GenericDataPayload();
-                payload.setConverter(new JsonPayloadConverter());
-                final int type = frame.charAt(1);
-                payload.add("type", String.valueOf(type));
-                for (String record : frame.substring(2).split(";")) {
-                    final String[] recordSplit = record.split("=");
-                    final String key = recordSplit[0];
-                    final String[] valueSplit = recordSplit[1].split("\\*");
-                    final double value = Double.parseDouble(valueSplit[0]);
-                    final String unit = valueSplit[1];
-                    final Date time = new Date();
-                    payload.add(key, String.valueOf(value), time);
-                    payload.add(key + ".unit", unit, time);
-                }
-                requestQueue.addToRequestQueue(factory.getRequest(payload), factory.getListener());
-            } else {
-                System.out.println("!!INVALID FRAME!!: " + frame);
-                doLog("!!INVALID FRAME!!: " + frame, "log", 10);
-            }
-        }
-
-        private boolean isFrameValid() {
-            final char[] frameChars = frame.toCharArray();
-            return preamble[0] == 0xAA && preamble[1] == 0xAA &&
-                    frame.length() > 2 &&
-                    (int) frameChars[0] == preamble.length + frame.length() + 2;
-        }
 
         private void logFrame() {
             doLog(frame, "log", 10);
             System.out.println(frame);
         }
 
-        private DataRequestFactory getDataRequestFactory() {
-            final String tenant = PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("tenant", null);
-            final String deviceId = PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("deviceId", null);
-            final String token = PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("token", null);
-            if (isCredentialsValid(tenant, deviceId, token)) {
-                Intent intent = new Intent(getApplicationContext(), SettingsActivity.class);
-                startActivity(intent);
-            }
-            Log.d("DEBUG", "Tenant: " + tenant);
-            Log.d("DEBUG", "Device ID: " + deviceId);
-            Log.d("DEBUG", "Token: " + token);
-            CredentialCache.getInstance().setCredentials(tenant, deviceId, token);
 
-            return DataRequestFactory.builder()
-                    .setDeviceId(deviceId)
-                    .setTenant(tenant)
-                    .setToken(token)
-                    .setListener(new Callback() {
-                        @Override
-                        public void onFailure(Call call, IOException e) {
-                            System.out.println("FAILURE :(");
-                            final String logMessage = "Failed to send data to IoT :(";
-                            System.out.println(logMessage);
-                            doLog(logMessage, "log", 10);
-                        }
-
-                        @Override
-                        public void onResponse(Call call, Response response) throws IOException {
-                            System.out.println(response);
-                            doLog("Sent data to IoT with status " + response.code(), "log", 10);
-                        }
-                    })
-                    .build();
-        }
-
-        private void doLog(String line, String log, int resultCode) {
-            Bundle bundle = new Bundle();
-            bundle.putString(log, line);
-            resultReceiver.send(resultCode, bundle);
-        }
-
-        private boolean isCredentialsValid(String tenant, String deviceId, String token) {
-            return tenant == null || "".equals(tenant)
-                    || deviceId == null || "".equals(deviceId)
-                    || token == null || "".equals(token);
-        }
     }
 
     private void doRelay() {
@@ -197,16 +125,104 @@ public class LertaMeterService extends Service {
                     System.out.println("NOT LERTA METER :(");
                 }
             }
-        } catch (IOException e) {
+        } catch (IOException | MqttException e) {
             e.printStackTrace();
         }
     }
 
-    private void handleLerta(BluetoothDevice device) throws IOException {
+    private void handleLerta(BluetoothDevice device) throws IOException, MqttException {
         final UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
         socket = device.createInsecureRfcommSocketToServiceRecord(uuid);
         socket.connect();
         inputStream = socket.getInputStream();
-//        reader = new BufferedReader(new InputStreamReader(inputStream));
     }
+
+
+    private void sendData() throws Exception {
+        if (isFrameValid()) {
+            final GenericDataPayload payload = new GenericDataPayload();
+            payload.setConverter(new JsonPayloadConverter());
+            final int type = frame.charAt(1);
+            payload.add("type", String.valueOf(type));
+            for (String record : frame.substring(2).split(";")) {
+                final String[] recordSplit = record.split("=");
+                final String key = recordSplit[0].replace(".", "_");
+                final String[] valueSplit = recordSplit[1].split("\\*");
+                final double value = Double.parseDouble(valueSplit[0]);
+                final String unit = valueSplit[1];
+                final Date time = new Date();
+                payload.add(key, String.valueOf(value), time);
+                payload.add(key + ".unit", unit, time);
+            }
+
+            final DataRequestFactory factory = getDataRequestFactory();
+            requestQueue.addToRequestQueue(factory.getRequest(payload), factory.getListener());
+        } else {
+            System.out.println("!!INVALID FRAME!!: " + frame);
+            doLog("!!INVALID FRAME!!: " + frame, "log", 10);
+        }
+    }
+
+    private boolean isFrameValid() {
+        final char[] frameChars = frame.toCharArray();
+        return preamble[0] == 0xAA && preamble[1] == 0xAA &&
+                frame.length() > 2 &&
+                (int) frameChars[0] == preamble.length + frame.length() + 2;
+    }
+
+    private DataRequestFactory getDataRequestFactory() throws MqttException {
+        final String tenant = PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("tenant", null);
+        final String deviceId = PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("deviceId", null);
+        final String token = PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("token", null);
+        if (isCredentialsValid(tenant, deviceId, token)) {
+            Intent intent = new Intent(getApplicationContext(), SettingsActivity.class);
+            startActivity(intent);
+        }
+        Log.d("DEBUG", "Tenant: " + tenant);
+        Log.d("DEBUG", "Device ID: " + deviceId);
+        Log.d("DEBUG", "Token: " + token);
+        CredentialCache.getInstance().setCredentials(tenant, deviceId, token);
+
+            return DataRequestFactory.builder()
+                    .setDeviceId(deviceId)
+                    .setTenant(tenant)
+                    .setToken(token)
+                    .setListener(new Callback() {
+                        @Override
+                        public void onFailure(Call call, IOException e) {
+                            final String logMessage = "Failed to send data to IoT :(";
+                            doLog(logMessage, "log", 10);
+                            e.printStackTrace();
+//                            if (e instanceof SocketTimeoutException) {
+//                                try {
+//                                    e.printStackTrace();
+//                                    doLog(e.getClass().getName(), "log", 10);
+//                                    sendData();
+//                                } catch (Exception e1) {
+//                                    e1.printStackTrace();
+//                                }
+//                            }
+                        }
+
+                        @Override
+                        public void onResponse(Call call, Response response) throws IOException {
+                            System.out.println(response);
+                            doLog("Sent data to IoT with status " + response.code(), "log", 10);
+                        }
+                    })
+                    .build();
+    }
+
+    private void doLog(String line, String log, int resultCode) {
+        Bundle bundle = new Bundle();
+        bundle.putString(log, new Date() + line);
+        resultReceiver.send(resultCode, bundle);
+    }
+
+    private boolean isCredentialsValid(String tenant, String deviceId, String token) {
+        return tenant == null || "".equals(tenant)
+                || deviceId == null || "".equals(deviceId)
+                || token == null || "".equals(token);
+    }
+
 }
