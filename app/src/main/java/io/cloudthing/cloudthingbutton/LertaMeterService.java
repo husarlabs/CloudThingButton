@@ -46,6 +46,7 @@ public class LertaMeterService extends Service {
     private HttpRequestQueue requestQueue = HttpRequestQueue.getInstance();
     private int[] preamble = new int[2];
     private String frame;
+    private BluetoothSocket socket;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -84,6 +85,10 @@ public class LertaMeterService extends Service {
 
         @Override
         public void run() {
+            if (!socket.isConnected()) {
+                doRelay();
+                doLog("Reconnecting...", "restart", 100);
+            }
             try {
                 preamble[0] = inputStream.read();
                 preamble[1] = inputStream.read();
@@ -199,7 +204,7 @@ public class LertaMeterService extends Service {
 
     private void handleLerta(BluetoothDevice device) throws IOException {
         final UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-        final BluetoothSocket socket = device.createInsecureRfcommSocketToServiceRecord(uuid);
+        socket = device.createInsecureRfcommSocketToServiceRecord(uuid);
         socket.connect();
         inputStream = socket.getInputStream();
 //        reader = new BufferedReader(new InputStreamReader(inputStream));
